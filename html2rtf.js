@@ -1,22 +1,22 @@
-import XlsxPopulate, { RichText } from 'xlsx-populate'
+// import XlsxPopulate, { RichText } from 'xlsx-populate'
 
-// let s = <ul><li>One</li><li>Two</li></ul>
+// let s = '<p>Hello World</p><ul><li>One</li><li>Two</li></ul><p>Hello World</p><ol><li>One Two</li><li><b>Three Four</b></li><li><b><i>Five </i></b><i>Six</i><ol><li><i>Seven</i></li></ol></li><li>Eight</li></ol><p><br></p>'
+// let p = '<p><u>Hello</u><b>World</b></p><p><u>Hello</u><b>World</b></p>'
 
-XlsxPopulate.fromBlankAsync()
-    .then(workbook => {
-        const cell =  workbook.sheet(0).cell('A1')
+// XlsxPopulate.fromBlankAsync()
+//     .then(workbook => {
+//         const cell =  workbook.sheet(0).cell('A1')
         
-        cell.value(html2rtf(s))
+//         cell.value(html2rtf(s))
 
-
-        workbook.outputAsync("base64")
-        .then(function (base64) {
-            location.href = "data:" + XlsxPopulate.MIME_TYPE + ";base64," + base64;
-        });
-    });
+//         workbook.outputAsync("base64")
+//         .then(function (base64) {
+//             location.href = "data:" + XlsxPopulate.MIME_TYPE + ";base64," + base64;
+//         });
+//     });
 
 function html2rtf(celltext){
-    let tagStyles = ['DEL', 'S', 'STRIKE', 'U', 'I', 'EM', 'B', 'STRONG', 'SUP', 'SUB']
+    let tagStyles = ['DEL', 'S', 'STRIKE', 'U', 'I', 'EM', 'B', 'STRONG', 'SUP', 'SUB', 'LI']
     let richText = new XlsxPopulate.RichText()
 
     if(celltext){
@@ -27,12 +27,14 @@ function html2rtf(celltext){
         let styledElements = []
         let foundFirstText = false
         let foundFirstBlockChild = true
+        let numbering = {}
+        let currentLevel = 0
 
         let loopThroughChildNodes = (nodes) =>{
             let fragmentCount = 0
             
             for(let i=0; i<nodes.length; i++){
-               
+
                 let textNode = nodes[i].nodeType == 3 && nodes[i]
                 
                 let elementNode = nodes[i].nodeType == 1 && nodes[i]
@@ -45,10 +47,38 @@ function html2rtf(celltext){
                     if((elementNode.nodeName == 'DIV' || elementNode.nodeName == 'P') && foundFirstBlockChild){
                         foundFirstBlockChild = false
                     }
+                    if(elementNode.nodeName == 'UL' || elementNode.nodeName == 'OL'){
+                        foundFirstBlockChild = false
+                        currentLevel++
+                        numbering[currentLevel] = 1
+                    }
                     if (elementNode.getAttribute('style')) {
                         styledElements.push(elementNode); 
                     } else if (tagStyles.indexOf(elementNode.nodeName) > -1) {
                         styledElements.push(elementNode);
+                    }
+                    if (elementNode.nodeName == "LI"){
+                        foundFirstBlockChild = false
+                        if(elementNode.parentNode.nodeName == "UL"){
+                            console.log(currentLevel)
+                            switch(currentLevel%2){
+                                case 1:
+                                    fragmentValue = " ".repeat(currentLevel*4) + "\u2022" + " " + fragmentValue; break;
+                                case 0:
+                                    fragmentValue = " ".repeat(currentLevel*4) + "\u25cb" + " " + fragmentValue; break;
+                            }
+                        }
+                        else if(elementNode.parentNode.nodeName == "OL"){
+                            switch(currentLevel%3){
+                                case 0:
+                                    fragmentValue = " ".repeat(currentLevel*4) + romanize(numbering[currentLevel]) + ". " + fragmentValue; break;
+                                case 1:
+                                    fragmentValue = " ".repeat(currentLevel*4) + numbering[currentLevel] + ". " + fragmentValue; break;
+                                case 2:
+                                    fragmentValue = " ".repeat(currentLevel*4) + colName(numbering[currentLevel]-1) + ". " + fragmentValue; break;
+                            }
+                        }
+                        numbering[currentLevel]++
                     }
                     if (!elementNode.childNodes || elementNode.childNodes.length == 0) {fragmentValue = elementNode.textContent}
                 }
@@ -69,7 +99,7 @@ function html2rtf(celltext){
                                 fragmentStyles['superscript'] = true;
                         }
                     }
-                    
+
                     if (foundFirstText && !foundFirstBlockChild) {
                         fragmentValue = '\n' + fragmentValue;
                     }
@@ -125,21 +155,48 @@ function html2rtf(celltext){
 
                     if (foundFirstText == false) {
                         foundFirstText = true
-                        foundFirstBlockChild = true
                     }
+                    foundFirstBlockChild = true
                 }
 
                 if (elementNode.childNodes) {loopThroughChildNodes(elementNode.childNodes)}
+
+                if(elementNode.nodeName == 'OL' || elementNode.nodeName == 'UL'){
+                    numbering[currentLevel] = 0
+                    currentLevel--
+                }
             }
             
         }
 
-        for (let i = 0; i < rootChildren.length; i++) {
-            loopThroughChildNodes(rootChildren[i].childNodes)
-        }
+        loopThroughChildNodes(rootChildren)
 
         return richText
     }
 
     return richText
+}
+
+function colName(n) {
+    var ordA = 'a'.charCodeAt(0);
+    var ordZ = 'z'.charCodeAt(0);
+    var len = ordZ - ordA + 1;
+  
+    var s = "";
+    while(n >= 0) {
+        s = String.fromCharCode(n % len + ordA) + s;
+        n = Math.floor(n / len)-1;
+    }
+    return s;
+}
+
+function romanize(num) {
+    var lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1},roman = '',i;
+    for ( i in lookup ) {
+      while ( num >= lookup[i] ) {
+        roman += i;
+        num -= lookup[i];
+      }
+    }
+    return roman; 
 }
