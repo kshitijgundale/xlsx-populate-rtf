@@ -9,7 +9,7 @@
 //     .then(workbook => {
 //         const cell =  workbook.sheet(0).cell('A1')
         
-//         cell.value(html2rtf(q + r))
+//         cell.value(html2rtf(s + q + p))
 
 //         workbook.outputAsync("base64")
 //         .then(function (base64) {
@@ -17,13 +17,20 @@
 //         });
 //     });
 
-function html2rtf(celltext){
+function html2rtf(celltext, addTableToCell=true){
     let tagStyles = ['DEL', 'S', 'STRIKE', 'U', 'I', 'EM', 'B', 'STRONG', 'SUP', 'SUB', 'LI']
     let richText = new XlsxPopulate.RichText()
 
     if(celltext){
         let div = document.createElement('div')
         div.innerHTML = celltext.replace(/&#58;/g, ':').replace(/<br>/g, '\n').replace(/&nbsp;/, ' ')
+
+        if(!addTableToCell){
+            let lst = div.querySelectorAll('table')
+            lst.forEach(elm => {
+                elm.parentNode.removeChild(elm)
+            })
+        }    
         
         let rootChildren = div.children
         let styledElements = []
