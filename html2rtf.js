@@ -1,13 +1,15 @@
 // import XlsxPopulate, { RichText } from 'xlsx-populate'
+// import ExcelJS from 'exceljs'
 
 // let s = '<p>Hello World</p><ul><li>One</li><li>Two</li></ul><p>Hello World</p><ol><li>One Two</li><li><b>Three Four</b></li><li><b><i>Five </i></b><i>Six</i><ol><li><i>Seven</i></li></ol></li><li>Eight</li></ol><p><br></p>'
-// let p = '<p><u>Hello</u><b>World</b></p><p><u>Hello</u><b>World</b></p>'
+// let p = '<p>Hello World</p><ul><li>One</li><li>Two</li></ul><p>Hello World</p><ol><li>One Two</li><li><b>Three Four</b></li></ol><p><b>Zero</b></p><ol><li><b><i>Five </i></b><i>Six</i><ol><li><i>Seven</i></li><li>Nine</li><li>Ten</li></ol></li><li>Eight</li></ol><p><img src="https://cunning-wolf-lr1avv-dev-ed--c.documentforce.com/servlet/rtaImage?eid=0012w00000Kou4b&amp;feoid=00N2w00000FPu0u&amp;refid=0EM2w000001VIch" alt="alumini.jpg"></img></p>'
+// let q = '<table class="ql-table-blob" dir="ltr" border="1" style="font-size: 11pt; font-family: Calibri; width: 0px;"><colgroup><col width="60"></col><col width="60"></col><col width="60"></col><col width="60"></col></colgroup><tbody><tr style="height: 21px;"><td colspan="1" rowspan="1" style="">One</td><td colspan="1" rowspan="1" style="">Two</td><td colspan="1" rowspan="1" style="">Three</td><td colspan="1" rowspan="1" style="">Four</td></tr><tr style="height: 21px;"><td colspan="1" rowspan="1" style="font-weight: bold;">Five</td><td colspan="1" rowspan="1" style="font-style: italic;">Six</td><td colspan="1" rowspan="1" style="font-style: italic;">Seven</td><td colspan="1" rowspan="1" style="font-weight: bold;">Eight</td></tr><tr style="height: 21px;"><td colspan="1" rowspan="1" style="">Nine</td><td colspan="1" rowspan="1" style="">Ten</td><td colspan="1" rowspan="1" style="">Eleven</td><td colspan="1" rowspan="1" style="">Twelve</td></tr></tbody></table><p><br></p>'
 
 // XlsxPopulate.fromBlankAsync()
 //     .then(workbook => {
 //         const cell =  workbook.sheet(0).cell('A1')
         
-//         cell.value(html2rtf(s))
+//         cell.value(html2rtf(q + r))
 
 //         workbook.outputAsync("base64")
 //         .then(function (base64) {
@@ -29,6 +31,13 @@ function html2rtf(celltext){
         let foundFirstBlockChild = true
         let numbering = {}
         let currentLevel = 0
+        let maxLength = 0
+        let tdCount = 0
+        let trCount = 0
+        let numCol = 0
+        let currTdLen = 0
+        let tableFont = {'fontFamily': 'courier'}
+        let isTableChild = false
 
         let loopThroughChildNodes = (nodes) =>{
             let fragmentCount = 0
@@ -44,7 +53,7 @@ function html2rtf(celltext){
                 let fragmentStyles = {}
 
                 if(elementNode){
-                    if((elementNode.nodeName == 'DIV' || elementNode.nodeName == 'P') && foundFirstBlockChild){
+                    if((elementNode.nodeName == 'DIV' || elementNode.nodeName == 'P' || elementNode.nodeName == 'TR') && foundFirstBlockChild){
                         foundFirstBlockChild = false
                     }
                     if(elementNode.nodeName == 'UL' || elementNode.nodeName == 'OL'){
@@ -60,7 +69,6 @@ function html2rtf(celltext){
                     if (elementNode.nodeName == "LI"){
                         foundFirstBlockChild = false
                         if(elementNode.parentNode.nodeName == "UL"){
-                            console.log(currentLevel)
                             switch(currentLevel%2){
                                 case 1:
                                     fragmentValue = " ".repeat(currentLevel*4) + "\u2022" + " " + fragmentValue; break;
@@ -80,7 +88,35 @@ function html2rtf(celltext){
                         }
                         numbering[currentLevel]++
                     }
-                    if (!elementNode.childNodes || elementNode.childNodes.length == 0) {fragmentValue = elementNode.textContent}
+                    if(elementNode.nodeName == 'IMG'){
+                        fragmentValue = "<" + elementNode.getAttribute('alt') + ">"
+                        fragmentStyles["italic"] = true
+                    }
+                    if(elementNode.nodeName == 'TABLE'){
+                        isTableChild = true
+                        let lst = textNodesUnder(elementNode)
+                        maxLength = Math.max(...lst.map(e => e.length))
+                        numCol = elementNode.getElementsByTagName('tr')[0].childElementCount 
+
+                    }
+                    if(elementNode.nodeName == "TR"){
+                        trCount++
+                        if(trCount === 1){
+                            let dash = ((maxLength + 4) * numCol) + numCol + 1
+                            fragmentValue = "-".repeat(dash) + "\n"
+                        }
+                    }
+                    if(elementNode.nodeName == "TD"){
+                        tdCount++
+                        if(tdCount === 1){
+                            fragmentValue = "|  "
+                        }
+                        else{
+                            fragmentValue += "  "
+                        }
+                        currTdLen = elementNode.textContent.length
+                    }
+                    //if (!elementNode.childNodes || elementNode.childNodes.length == 0) {fragmentValue = elementNode.textContent}
                 }
                 if(fragmentValue){
                     let checkTagStyles = (_node) => {
@@ -124,15 +160,15 @@ function html2rtf(celltext){
                     for (let j = 0; j<elementStyles.length;j++) {
                         // individual styles
                         switch (elementStyles[j]) {
-                            case 'font-weight:bold':
+                            case 'font-weight: bold':
                                 fragmentStyles['bold'] = true; break;
-                            case 'font-style:italic':
+                            case 'font-style: italic':
                                 fragmentStyles['italic'] = true; break;
-                            case 'text-decoration:underline':
+                            case 'text-decoration: underline':
                                 fragmentStyles['underline'] = true; break;
-                            case 'text-decoration:strikethrough':
+                            case 'text-decoration: strikethrough':
                                 fragmentStyles['strikethrough'] = true; break;
-                            case 'text-decoration:line-through':
+                            case 'text-decoration: line-through':
                                 fragmentStyles['strikethrough'] = true; break;
                         }
 
@@ -140,11 +176,14 @@ function html2rtf(celltext){
                         if (color && color[1] != 'Black') fragmentStyles['fontColor'] = color[1]
                     }
 
-                    if (styledElements.length > 0) {
-                        fragmentStyles['fontSize'] = fragmentStyles['fontSize'] || 10
-                        fragmentStyles['fontFamily'] = fragmentStyles['fontFamily'] || 'Arial'
-                    }
+                    // if (styledElements.length > 0) {
+                    //     fragmentStyles['fontSize'] = fragmentStyles['fontSize'] || 10
+                    //     fragmentStyles['fontFamily'] = fragmentStyles['fontFamily'] || 'Arial'
+                    // }
 
+                    if(isTableChild){
+                        fragmentStyles['fontFamily'] = 'courier'
+                    }
                     richText.add(fragmentValue, fragmentStyles);
                 
                     if (/(?:^\s)|(?:\s$)/.test(fragmentValue)) {
@@ -164,6 +203,23 @@ function html2rtf(celltext){
                 if(elementNode.nodeName == 'OL' || elementNode.nodeName == 'UL'){
                     numbering[currentLevel] = 0
                     currentLevel--
+                }
+                if(elementNode.nodeName == "TABLE"){
+                    isTableChild = false
+                }
+                if(elementNode.nodeName == "TD"){
+                    if(numCol === tdCount){
+                        richText.add(" ".repeat(maxLength - currTdLen) + "  |" + "\n", tableFont);
+                    }
+                    else{
+                        richText.add(" ".repeat(maxLength - currTdLen) + "  |", tableFont);
+                    }
+                }
+                if(elementNode.nodeName == "TR"){
+                    let dash = ((maxLength + 4) * numCol) + numCol + 1
+                    let str = "-".repeat(dash)
+                    richText.add(str, tableFont)
+                    tdCount = 0
                 }
             }
             
@@ -199,4 +255,10 @@ function romanize(num) {
       }
     }
     return roman; 
+}
+
+function textNodesUnder(el){
+    var n, a=[], walk=document.createNodeIterator(el,NodeFilter.SHOW_TEXT,null,false);
+    while(n=walk.nextNode()) a.push(n.textContent);
+    return a;
 }
